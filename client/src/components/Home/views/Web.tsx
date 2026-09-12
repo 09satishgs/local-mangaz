@@ -13,6 +13,7 @@ import {
   Bookmark,
   CheckCircle2
 } from 'lucide-react';
+import ContinueCarousel from '../ContinueCarousel';
 
 const AVAILABLE_LANGS = [
   { code: 'en', label: 'English (en)' },
@@ -114,6 +115,9 @@ export default function Web({ home }: { home: any }) {
           <span>{searchError}</span>
         </div>
       )}
+
+      {/* Continue Reading Carousel */}
+      <ContinueCarousel />
 
       {/* 2-Column Layout */}
       <div className="grid grid-cols-12 gap-6">

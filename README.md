@@ -60,6 +60,25 @@ A full-stack Node.js + React desktop/web application for searching, bookmarking,
 
 ---
 
+## Configuration (`.env`)
+
+You can customize paths and port in `.env`:
+```env
+PORT=1001
+
+# Restrict folder browsing for image-based Read route to a specific directory
+# Only files and subfolders inside this path will be accessible
+READ_DIR=C:\ABC\XYZ
+
+# Restrict folder browsing for CBZ comic archive route to a specific directory
+# Only .cbz/.zip archives and subfolders inside this path will be accessible
+CBZ_DIR=C:\ABC\XYZ\Comics
+```
+- If `READ_DIR` or `CBZ_DIR` are left blank or omitted, they default to the local `downloads` directory.
+- Root boundaries prevent the user from navigating outside or above the designated folder (going up stops at the root directory, and requests outside return `403 Forbidden`).
+
+---
+
 ## How to Run
 
 ### Development Mode (Concurrent Backend + Vite HMR)

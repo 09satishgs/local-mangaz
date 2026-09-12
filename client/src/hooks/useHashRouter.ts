@@ -5,9 +5,10 @@ export type RouteType = 'home' | 'progress' | 'read' | 'cbz';
 const VALID_ROUTES: RouteType[] = ['home', 'progress', 'read', 'cbz'];
 
 function getRouteFromHash(): RouteType {
-  const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
-  if (VALID_ROUTES.includes(hash as RouteType)) {
-    return hash as RouteType;
+  const cleanHash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();
+  const routeName = cleanHash.split('?')[0].split('/')[0];
+  if (VALID_ROUTES.includes(routeName as RouteType)) {
+    return routeName as RouteType;
   }
   return 'home';
 }

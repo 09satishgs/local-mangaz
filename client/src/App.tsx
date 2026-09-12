@@ -7,6 +7,7 @@ import CBZ from './components/CBZ';
 import { BookmarkProvider } from './context/BookmarkContext';
 import { DownloadProvider } from './context/DownloadContext';
 import { ViewModeProvider } from './context/ViewModeContext';
+import { ResumeProvider } from './context/ResumeContext';
 import { useHashRouter } from './hooks/useHashRouter';
 
 export default function App() {
@@ -16,12 +17,14 @@ export default function App() {
     <ViewModeProvider>
       <DownloadProvider>
         <BookmarkProvider>
-          <Layout currentRoute={currentRoute} onRouteChange={navigate}>
-            {currentRoute === 'home' && <Home />}
-            {currentRoute === 'progress' && <Progress />}
-            {currentRoute === 'read' && <Read />}
-            {currentRoute === 'cbz' && <CBZ />}
-          </Layout>
+          <ResumeProvider>
+            <Layout currentRoute={currentRoute} onRouteChange={navigate}>
+              {currentRoute === 'home' && <Home />}
+              {currentRoute === 'progress' && <Progress />}
+              {currentRoute === 'read' && <Read />}
+              {currentRoute === 'cbz' && <CBZ />}
+            </Layout>
+          </ResumeProvider>
         </BookmarkProvider>
       </DownloadProvider>
     </ViewModeProvider>

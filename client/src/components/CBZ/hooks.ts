@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDownload } from '../../context/DownloadContext';
+import { useResume } from '../../context/ResumeContext';
 
 export interface CbzFile {
   name: string;
@@ -14,7 +15,8 @@ export interface CbzPage {
 }
 
 export function useCbz() {
-  const { downloadDir, API_BASE } = useDownload();
+  const { downloadDir, cbzDir, API_BASE } = useDownload();
+  const { resumeItem, clearResume } = useResume();
 
   const [currentPath, setCurrentPath] = useState('');
   const [parentPath, setParentPath] = useState<string | null>(null);
@@ -65,8 +67,45 @@ export function useCbz() {
   );
 
   useEffect(() => {
-    fetchDirectory(downloadDir);
-  }, [fetchDirectory, downloadDir]);
+    fetchDirectory(cbzDir || downloadDir || undefined);
+  }, [fetchDirectory, cbzDir, downloadDir]);
+
+  // Handle resume request from Continue Carousel
+  useEffect(() => {
+    if (resumeItem && resumeItem.readerType === 'cbz') {
+      openCbzReader(resumeItem.path, resumeItem.currentPage);
+      clearResume();
+    }
+  }, [resumeItem, clearResume]);
+
+  // Automatically track and save reading progress when reading CBZ
+  useEffect(() => {
+    if (!readerOpen || !activeCbz || activeCbz.pages.length === 0) return;
+
+    const timer = setTimeout(() => {
+      const parts = activeCbz.path.replace(/\\/g, '/').split('/').filter(Boolean);
+      const cleanName = activeCbz.name.replace(/\.(cbz|zip)$/i, '');
+      const chapter = cleanName;
+      const title = parts.length > 1 ? parts[parts.length - 2] : cleanName;
+      const thumb = activeCbz.pages[0]?.url || null;
+
+      fetch(`${API_BASE}/progress/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: activeCbz.path,
+          title,
+          chapter,
+          readerType: 'cbz',
+          currentPage: currentPageIndex,
+          totalPages: activeCbz.pages.length,
+          thumbnailUrl: thumb,
+        }),
+      }).catch((err) => console.error('Failed to save CBZ progress:', err));
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [readerOpen, currentPageIndex, activeCbz, API_BASE]);
 
   const openFolder = (folderPath: string) => {
     fetchDirectory(folderPath);

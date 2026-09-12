@@ -6,6 +6,8 @@ export const DownloadContext = createContext<any>(null);
 export const DownloadProvider = ({ children }: { children: React.ReactNode }) => {
   const [downloadDir, setDownloadDir] = useState('');
   const [defaultDir, setDefaultDir] = useState('');
+  const [readDir, setReadDir] = useState('');
+  const [cbzDir, setCbzDir] = useState('');
   const [jobs, setJobs] = useState<any[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
@@ -16,6 +18,12 @@ export const DownloadProvider = ({ children }: { children: React.ReactNode }) =>
         if (data.defaultDownloadDir) {
           setDefaultDir(data.defaultDownloadDir);
           setDownloadDir((prev) => prev || data.defaultDownloadDir);
+        }
+        if (data.readDir) {
+          setReadDir(data.readDir);
+        }
+        if (data.cbzDir) {
+          setCbzDir(data.cbzDir);
         }
       })
       .catch((err) => console.error('Config fetch failed:', err));
@@ -91,6 +99,8 @@ export const DownloadProvider = ({ children }: { children: React.ReactNode }) =>
     downloadDir,
     setDownloadDir,
     defaultDir,
+    readDir,
+    cbzDir,
     jobs,
     activeJobId,
     startDownload,

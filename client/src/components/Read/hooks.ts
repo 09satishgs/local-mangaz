@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDownload } from '../../context/DownloadContext';
+import { useResume } from '../../context/ResumeContext';
 
 export function useRead() {
-  const { downloadDir, API_BASE } = useDownload();
+  const { downloadDir, readDir, API_BASE } = useDownload();
+  const { resumeItem, clearResume } = useResume();
 
   const [currentPath, setCurrentPath] = useState('');
   const [parentPath, setParentPath] = useState<string | null>(null);
@@ -59,8 +61,46 @@ export function useRead() {
 
   // Initial load
   useEffect(() => {
-    fetchDirectory(downloadDir);
-  }, [fetchDirectory, downloadDir]);
+    fetchDirectory(readDir || downloadDir || undefined);
+  }, [fetchDirectory, readDir, downloadDir]);
+
+  // Handle resume request from Continue Carousel
+  useEffect(() => {
+    if (resumeItem && resumeItem.readerType === 'read') {
+      fetchDirectory(resumeItem.path, true, resumeItem.currentPage);
+      clearResume();
+    }
+  }, [resumeItem, fetchDirectory, clearResume]);
+
+  // Automatically track and save reading progress when reading
+  useEffect(() => {
+    if (!readerOpen || images.length === 0 || !currentPath) return;
+
+    const timer = setTimeout(() => {
+      const parts = currentPath.replace(/\\/g, '/').split('/').filter(Boolean);
+      const chapter = parts.length > 0 ? parts[parts.length - 1] : 'Chapter';
+      const title = parts.length > 1 ? parts[parts.length - 2] : chapter;
+      const thumb = images[0]?.path
+        ? `${API_BASE}/image?path=${encodeURIComponent(images[0].path)}`
+        : null;
+
+      fetch(`${API_BASE}/progress/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: currentPath,
+          title,
+          chapter,
+          readerType: 'read',
+          currentPage: currentPageIndex,
+          totalPages: images.length,
+          thumbnailUrl: thumb,
+        }),
+      }).catch((err) => console.error('Failed to save read progress:', err));
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [readerOpen, currentPageIndex, images, currentPath, API_BASE]);
 
   const openFolder = (folderPath: string) => {
     fetchDirectory(folderPath);

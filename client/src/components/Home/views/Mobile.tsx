@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   CheckCircle2
 } from 'lucide-react';
+import ContinueCarousel from '../ContinueCarousel';
 
 const AVAILABLE_LANGS = [
   { code: 'en', label: 'EN' },
@@ -114,6 +115,9 @@ export default function Mobile({ home }: { home: any }) {
           <span>{searchError}</span>
         </div>
       )}
+
+      {/* Continue Reading Carousel */}
+      {!selectedManga && <ContinueCarousel />}
 
       {/* Tabs */}
       <div className="grid grid-cols-2 gap-2 bg-zinc-950 p-1 rounded-lg border border-zinc-900">

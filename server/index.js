@@ -18,46 +18,29 @@ if (!PORT) {
 app.use(cors());
 app.use(express.json());
 
-// JSON File Database for Bookmarks
-const DB_DIR = path.resolve(__dirname, "../data");
-const BOOKMARKS_FILE = path.join(DB_DIR, "bookmarks.json");
-
-// Ensure DB directory and file exist
-fs.ensureDirSync(DB_DIR);
-if (!fs.existsSync(BOOKMARKS_FILE)) {
-  fs.writeJsonSync(BOOKMARKS_FILE, []);
-}
-
-async function getBookmarksFromDb() {
-  try {
-    return await fs.readJson(BOOKMARKS_FILE);
-  } catch (err) {
-    console.error("Error reading bookmarks DB:", err.message);
-    return [];
-  }
-}
-
-async function saveBookmarksToDb(bookmarks) {
-  try {
-    await fs.writeJson(BOOKMARKS_FILE, bookmarks, { spaces: 2 });
-  } catch (err) {
-    console.error("Error writing bookmarks DB:", err.message);
-  }
-}
+const {
+  getBookmarks,
+  toggleBookmark,
+  deleteBookmark,
+  getProgressList,
+  upsertProgress,
+  deleteProgress,
+} = require("./db");
 
 // ----------------------------------------------------
-// Bookmarks Database API Endpoints
+// Bookmarks SQLite Database API Endpoints
 // ----------------------------------------------------
-app.get("/api/bookmarks", async (req, res) => {
+app.get("/api/bookmarks", (req, res) => {
   try {
-    const bookmarks = await getBookmarksFromDb();
+    const bookmarks = getBookmarks();
     res.json({ bookmarks });
   } catch (err) {
+    console.error("Error fetching bookmarks:", err.message);
     res.status(500).json({ error: "Failed to read bookmarks" });
   }
 });
 
-app.post("/api/bookmarks", async (req, res) => {
+app.post("/api/bookmarks", (req, res) => {
   try {
     const manga = req.body;
     if (!manga || !manga.id || !manga.title) {
@@ -66,45 +49,70 @@ app.post("/api/bookmarks", async (req, res) => {
         .json({ error: "Valid manga object with id and title is required" });
     }
 
-    const bookmarks = await getBookmarksFromDb();
-    const existingIndex = bookmarks.findIndex((b) => b.id === manga.id);
-
-    if (existingIndex >= 0) {
-      // Toggle off / remove
-      bookmarks.splice(existingIndex, 1);
-      await saveBookmarksToDb(bookmarks);
-      return res.json({ bookmarked: false, bookmarks });
-    } else {
-      // Add
-      const newBookmark = {
-        id: manga.id,
-        title: manga.title,
-        coverUrl: manga.coverUrl || null,
-        author: manga.author || "Unknown",
-        status: manga.status || "",
-        year: manga.year || "",
-        description: manga.description || "",
-        savedAt: Date.now(),
-      };
-      bookmarks.unshift(newBookmark);
-      await saveBookmarksToDb(bookmarks);
-      return res.json({ bookmarked: true, bookmarks });
-    }
+    const result = toggleBookmark(manga);
+    res.json(result);
   } catch (err) {
-    console.error("Bookmark error:", err);
+    console.error("Bookmark error:", err.message);
     res.status(500).json({ error: "Failed to update bookmark" });
   }
 });
 
-app.delete("/api/bookmarks/:id", async (req, res) => {
+app.delete("/api/bookmarks/:id", (req, res) => {
   try {
     const { id } = req.params;
-    let bookmarks = await getBookmarksFromDb();
-    bookmarks = bookmarks.filter((b) => b.id !== id);
-    await saveBookmarksToDb(bookmarks);
+    const bookmarks = deleteBookmark(id);
     res.json({ success: true, bookmarks });
   } catch (err) {
+    console.error("Delete bookmark error:", err.message);
     res.status(500).json({ error: "Failed to delete bookmark" });
+  }
+});
+
+// ----------------------------------------------------
+// Reading Progress Tracking API Endpoints
+// ----------------------------------------------------
+app.get("/api/progress/continue", (req, res) => {
+  try {
+    const progress = getProgressList();
+    res.json({ progress });
+  } catch (err) {
+    console.error("Error fetching continue progress:", err.message);
+    res.status(500).json({ error: "Failed to fetch reading progress" });
+  }
+});
+
+app.post("/api/progress/update", (req, res) => {
+  try {
+    const { path: itemPath, title, chapter, readerType, currentPage, totalPages, thumbnailUrl } = req.body;
+    if (!itemPath || !title) {
+      return res.status(400).json({ error: "path and title are required" });
+    }
+
+    const saved = upsertProgress({
+      path: itemPath,
+      title,
+      chapter,
+      readerType,
+      currentPage,
+      totalPages,
+      thumbnailUrl,
+    });
+
+    res.json({ success: true, progress: saved });
+  } catch (err) {
+    console.error("Error updating reading progress:", err.message);
+    res.status(500).json({ error: "Failed to update reading progress" });
+  }
+});
+
+app.delete("/api/progress/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const progress = deleteProgress(id);
+    res.json({ success: true, progress });
+  } catch (err) {
+    console.error("Error deleting reading progress:", err.message);
+    res.status(500).json({ error: "Failed to delete reading progress" });
   }
 });
 
@@ -184,21 +192,64 @@ app.post("/api/jobs/:id/cancel", (req, res) => {
   res.json({ success });
 });
 
+function isPathInside(targetPath, rootPath) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedRoot = path.resolve(rootPath);
+
+  const rel = path.relative(
+    process.platform === "win32" ? resolvedRoot.toLowerCase() : resolvedRoot,
+    process.platform === "win32" ? resolvedTarget.toLowerCase() : resolvedTarget,
+  );
+
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+function getReadRootDir() {
+  const configured = process.env.READ_DIR && process.env.READ_DIR.trim();
+  const dir = configured
+    ? path.resolve(configured)
+    : path.resolve(__dirname, "../downloads");
+  fs.ensureDirSync(dir);
+  return dir;
+}
+
+function getCbzRootDir() {
+  const configured = process.env.CBZ_DIR && process.env.CBZ_DIR.trim();
+  const dir = configured
+    ? path.resolve(configured)
+    : path.resolve(__dirname, "../downloads");
+  fs.ensureDirSync(dir);
+  return dir;
+}
+
 app.get("/api/config", (req, res) => {
   const defaultDir = path.resolve(__dirname, "../downloads");
+  const readDir = getReadRootDir();
+  const cbzDir = getCbzRootDir();
   res.json({
     defaultDownloadDir: defaultDir,
+    readDir,
+    cbzDir,
   });
 });
 
 // ----------------------------------------------------
-// Explorer & Reader API
+// Explorer & Reader API (Image-based Read Route)
 // ----------------------------------------------------
 app.get("/api/explore", async (req, res) => {
   try {
-    const requestedPath =
-      req.query.path || path.resolve(__dirname, "../downloads");
-    const safePath = path.resolve(requestedPath);
+    const rootDir = getReadRootDir();
+    const requestedPath = req.query.path
+      ? path.resolve(req.query.path)
+      : rootDir;
+
+    if (!isPathInside(requestedPath, rootDir)) {
+      return res
+        .status(403)
+        .json({ error: "Access denied: Path is outside the configured read directory" });
+    }
+
+    const safePath = requestedPath;
 
     if (!(await fs.pathExists(safePath))) {
       return res.status(404).json({ error: "Directory does not exist" });
@@ -240,14 +291,19 @@ app.get("/api/explore", async (req, res) => {
     folders.sort((a, b) => naturalSort(a.name, b.name));
     images.sort((a, b) => naturalSort(a.name, b.name));
 
-    // Parent directory
-    const parentPath = path.dirname(safePath);
+    // Parent directory - only allowed if within rootDir
+    const isAtRoot =
+      (process.platform === "win32" ? safePath.toLowerCase() : safePath) ===
+      (process.platform === "win32" ? rootDir.toLowerCase() : rootDir);
+    const rawParentPath = path.dirname(safePath);
+    const parentPath =
+      !isAtRoot && isPathInside(rawParentPath, rootDir) ? rawParentPath : null;
 
     // Sibling directories for chapter navigation (if inside a chapter folder)
     let prevSiblingFolder = null;
     let nextSiblingFolder = null;
 
-    if (parentPath && parentPath !== safePath) {
+    if (parentPath && isPathInside(parentPath, rootDir)) {
       try {
         const parentEntries = await fs.readdir(parentPath, {
           withFileTypes: true,
@@ -261,7 +317,9 @@ app.get("/api/explore", async (req, res) => {
           .sort((a, b) => naturalSort(a.name, b.name));
 
         const currentIndex = siblingFolders.findIndex(
-          (f) => f.path.toLowerCase() === safePath.toLowerCase(),
+          (f) =>
+            (process.platform === "win32" ? f.path.toLowerCase() : f.path) ===
+            (process.platform === "win32" ? safePath.toLowerCase() : safePath),
         );
         if (currentIndex > 0) {
           prevSiblingFolder = siblingFolders[currentIndex - 1];
@@ -276,7 +334,8 @@ app.get("/api/explore", async (req, res) => {
 
     res.json({
       currentPath: safePath,
-      parentPath: parentPath !== safePath ? parentPath : null,
+      parentPath,
+      rootDir,
       folders,
       images,
       prevSiblingFolder,
@@ -293,6 +352,7 @@ app.get("/api/explore", async (req, res) => {
 // Rename folder endpoint
 app.post("/api/folder/rename", async (req, res) => {
   try {
+    const rootDir = getReadRootDir();
     const { folderPath, newName } = req.body;
     if (!folderPath || !newName || !newName.trim()) {
       return res
@@ -301,6 +361,17 @@ app.post("/api/folder/rename", async (req, res) => {
     }
 
     const resolvedPath = path.resolve(folderPath);
+    if (!isPathInside(resolvedPath, rootDir)) {
+      return res.status(403).json({ error: "Access denied: Path is outside the configured read directory" });
+    }
+
+    const isAtRoot =
+      (process.platform === "win32" ? resolvedPath.toLowerCase() : resolvedPath) ===
+      (process.platform === "win32" ? rootDir.toLowerCase() : rootDir);
+    if (isAtRoot) {
+      return res.status(403).json({ error: "Access denied: Cannot rename root directory" });
+    }
+
     if (!(await fs.pathExists(resolvedPath))) {
       return res.status(404).json({ error: "Source folder does not exist" });
     }
@@ -318,6 +389,10 @@ app.post("/api/folder/rename", async (req, res) => {
 
     const parentDir = path.dirname(resolvedPath);
     const destinationPath = path.join(parentDir, cleanName);
+
+    if (!isPathInside(destinationPath, rootDir)) {
+      return res.status(403).json({ error: "Access denied: Destination is outside configured read directory" });
+    }
 
     if (
       destinationPath.toLowerCase() !== resolvedPath.toLowerCase() &&
@@ -344,11 +419,15 @@ app.post("/api/folder/rename", async (req, res) => {
 
 app.get("/api/image", async (req, res) => {
   try {
+    const rootDir = getReadRootDir();
     const filePath = req.query.path;
     if (!filePath) {
       return res.status(400).send("Image path is required");
     }
     const resolvedPath = path.resolve(filePath);
+    if (!isPathInside(resolvedPath, rootDir)) {
+      return res.status(403).send("Access denied: Path is outside the configured read directory");
+    }
     if (!(await fs.pathExists(resolvedPath))) {
       return res.status(404).send("Image not found");
     }
@@ -366,9 +445,18 @@ app.get("/api/image", async (req, res) => {
 // Explore directory for folders and .cbz / .zip files
 app.get("/api/cbz/explore", async (req, res) => {
   try {
-    const requestedPath =
-      req.query.path || path.resolve(__dirname, "../downloads");
-    const safePath = path.resolve(requestedPath);
+    const cbzRootDir = getCbzRootDir();
+    const requestedPath = req.query.path
+      ? path.resolve(req.query.path)
+      : cbzRootDir;
+
+    if (!isPathInside(requestedPath, cbzRootDir)) {
+      return res
+        .status(403)
+        .json({ error: "Access denied: Path is outside the configured CBZ directory" });
+    }
+
+    const safePath = requestedPath;
 
     if (!(await fs.pathExists(safePath))) {
       return res.status(404).json({ error: "Directory does not exist" });
@@ -409,11 +497,18 @@ app.get("/api/cbz/explore", async (req, res) => {
     folders.sort((a, b) => naturalSort(a.name, b.name));
     cbzFiles.sort((a, b) => naturalSort(a.name, b.name));
 
-    const parentPath = path.dirname(safePath);
+    // Parent directory - only allowed if within cbzRootDir
+    const isAtRoot =
+      (process.platform === "win32" ? safePath.toLowerCase() : safePath) ===
+      (process.platform === "win32" ? cbzRootDir.toLowerCase() : cbzRootDir);
+    const rawParentPath = path.dirname(safePath);
+    const parentPath =
+      !isAtRoot && isPathInside(rawParentPath, cbzRootDir) ? rawParentPath : null;
 
     res.json({
       currentPath: safePath,
-      parentPath: parentPath !== safePath ? parentPath : null,
+      parentPath,
+      rootDir: cbzRootDir,
       folders,
       cbzFiles,
     });
@@ -428,12 +523,17 @@ app.get("/api/cbz/explore", async (req, res) => {
 // Inspect a .cbz file and list image pages inside it
 app.get("/api/cbz/pages", async (req, res) => {
   try {
+    const cbzRootDir = getCbzRootDir();
     const filePath = req.query.path;
     if (!filePath) {
       return res.status(400).json({ error: "CBZ file path is required" });
     }
 
     const resolvedPath = path.resolve(filePath);
+    if (!isPathInside(resolvedPath, cbzRootDir)) {
+      return res.status(403).json({ error: "Access denied: Path is outside the configured CBZ directory" });
+    }
+
     if (!(await fs.pathExists(resolvedPath))) {
       return res.status(404).json({ error: "CBZ file not found" });
     }
@@ -466,33 +566,37 @@ app.get("/api/cbz/pages", async (req, res) => {
     let prevCbz = null;
     let nextCbz = null;
 
-    try {
-      const dirEntries = await fs.readdir(parentDir, { withFileTypes: true });
-      const siblingCbzs = dirEntries
-        .filter(
-          (e) =>
-            e.isFile() &&
-            (e.name.toLowerCase().endsWith(".cbz") ||
-              e.name.toLowerCase().endsWith(".zip")),
-        )
-        .map((e) => ({
-          name: e.name,
-          path: path.join(parentDir, e.name),
-        }))
-        .sort((a, b) => naturalSort(a.name, b.name));
+    if (isPathInside(parentDir, cbzRootDir)) {
+      try {
+        const dirEntries = await fs.readdir(parentDir, { withFileTypes: true });
+        const siblingCbzs = dirEntries
+          .filter(
+            (e) =>
+              e.isFile() &&
+              (e.name.toLowerCase().endsWith(".cbz") ||
+                e.name.toLowerCase().endsWith(".zip")),
+          )
+          .map((e) => ({
+            name: e.name,
+            path: path.join(parentDir, e.name),
+          }))
+          .sort((a, b) => naturalSort(a.name, b.name));
 
-      const currentIndex = siblingCbzs.findIndex(
-        (c) => c.path.toLowerCase() === resolvedPath.toLowerCase(),
-      );
+        const currentIndex = siblingCbzs.findIndex(
+          (c) =>
+            (process.platform === "win32" ? c.path.toLowerCase() : c.path) ===
+            (process.platform === "win32" ? resolvedPath.toLowerCase() : resolvedPath),
+        );
 
-      if (currentIndex > 0) {
-        prevCbz = siblingCbzs[currentIndex - 1];
+        if (currentIndex > 0) {
+          prevCbz = siblingCbzs[currentIndex - 1];
+        }
+        if (currentIndex >= 0 && currentIndex < siblingCbzs.length - 1) {
+          nextCbz = siblingCbzs[currentIndex + 1];
+        }
+      } catch (siblingErr) {
+        console.error("Error finding CBZ siblings:", siblingErr.message);
       }
-      if (currentIndex >= 0 && currentIndex < siblingCbzs.length - 1) {
-        nextCbz = siblingCbzs[currentIndex + 1];
-      }
-    } catch (siblingErr) {
-      console.error("Error finding CBZ siblings:", siblingErr.message);
     }
 
     res.json({
@@ -514,6 +618,7 @@ app.get("/api/cbz/pages", async (req, res) => {
 // Stream a single image file out of a .cbz archive
 app.get("/api/cbz/image", async (req, res) => {
   try {
+    const cbzRootDir = getCbzRootDir();
     const filePath = req.query.path;
     const entryName = req.query.entry;
 
@@ -524,6 +629,10 @@ app.get("/api/cbz/image", async (req, res) => {
     }
 
     const resolvedPath = path.resolve(filePath);
+    if (!isPathInside(resolvedPath, cbzRootDir)) {
+      return res.status(403).send("Access denied: Path is outside the configured CBZ directory");
+    }
+
     if (!(await fs.pathExists(resolvedPath))) {
       return res.status(404).send("CBZ file not found");
     }
