@@ -158,7 +158,12 @@ export default function Mobile({ home }: { home: any }) {
           <div className="flex gap-3 pb-3 border-b border-zinc-900">
             <div className="w-16 h-24 bg-zinc-900 rounded overflow-hidden shrink-0">
               {selectedManga.coverUrl ? (
-                <img src={selectedManga.coverUrl} alt={selectedManga.title} className="w-full h-full object-cover" />
+                <img
+                  src={selectedManga.coverUrl}
+                  alt={selectedManga.title}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
               ) : (
                 <BookOpen className="w-5 h-5 text-zinc-700 m-auto mt-8" />
               )}
@@ -259,7 +264,13 @@ export default function Mobile({ home }: { home: any }) {
               >
                 <div className="w-12 h-16 bg-zinc-900 rounded overflow-hidden shrink-0 border border-zinc-900">
                   {manga.coverUrl ? (
-                    <img src={manga.coverUrl} alt={manga.title} className="w-full h-full object-cover" loading="lazy" />
+                    <img
+                      src={manga.coverUrl}
+                      alt={manga.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
                   ) : (
                     <BookOpen className="w-4 h-4 text-zinc-700 m-auto mt-6" />
                   )}

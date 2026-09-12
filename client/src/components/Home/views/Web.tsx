@@ -181,7 +181,13 @@ export default function Web({ home }: { home: any }) {
                   {/* Cover */}
                   <div className="w-14 h-20 bg-zinc-900 rounded-md overflow-hidden shrink-0 flex items-center justify-center border border-zinc-900">
                     {manga.coverUrl ? (
-                      <img src={manga.coverUrl} alt={manga.title} className="w-full h-full object-cover" loading="lazy" />
+                      <img
+                        src={manga.coverUrl}
+                        alt={manga.title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
                     ) : (
                       <BookOpen className="w-5 h-5 text-zinc-700" />
                     )}
@@ -256,7 +262,12 @@ export default function Web({ home }: { home: any }) {
               <div className="flex items-start gap-4 pb-4 border-b border-zinc-900">
                 <div className="w-20 h-28 bg-zinc-900 rounded-md overflow-hidden shrink-0 border border-zinc-900">
                   {selectedManga.coverUrl ? (
-                    <img src={selectedManga.coverUrl} alt={selectedManga.title} className="w-full h-full object-cover" />
+                    <img
+                      src={selectedManga.coverUrl}
+                      alt={selectedManga.title}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
                   ) : (
                     <BookOpen className="w-6 h-6 text-zinc-700 m-auto mt-10" />
                   )}
