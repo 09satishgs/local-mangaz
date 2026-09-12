@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const fs = require("fs-extra");
 const { searchManga, getMangaChapters } = require("./mangadex");
 const { downloadManager } = require("./downloadManager");
@@ -8,6 +9,11 @@ const { downloadManager } = require("./downloadManager");
 const AdmZip = require("adm-zip");
 const app = express();
 const PORT = process.env.PORT;
+
+if (!PORT) {
+  console.error("Error: PORT environment variable is not defined in .env file.");
+  process.exit(1);
+}
 
 app.use(cors());
 app.use(express.json());

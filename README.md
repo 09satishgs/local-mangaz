@@ -66,7 +66,7 @@ A full-stack Node.js + React desktop/web application for searching, bookmarking,
 ```bash
 npm run dev
 ```
-- **Backend API**: [http://localhost:3001](http://localhost:3001)
+- **Backend API**: [http://localhost:<PORT>](http://localhost:<PORT>)
 - **Frontend App**: [http://localhost:5173/#/home](http://localhost:5173/#/home)
 
 ### Production Build & Start
@@ -77,5 +77,5 @@ npm run build
 # 2. Run the production server (serves API & pre-built static client)
 npm start
 ```
-- Access the production app at: [http://localhost:3001/#/home](http://localhost:3001/#/home)
+- Access the production app at: [http://localhost:<PORT>/#/home](http://localhost:<PORT>/#/home)
 

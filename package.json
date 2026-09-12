@@ -4,12 +4,12 @@
   "description": "Local manga search and downloader with rate-limited MangaDex integration",
   "main": "server/index.js",
   "scripts": {
-    "server": "node server/index.js",
+    "server": "node --env-file=.env server/index.js",
     "client": "npm run dev --prefix client",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "build:client": "npm run build --prefix client",
     "build": "npm run build:client",
-    "start": "node server/index.js"
+    "start": "node --env-file=.env server/index.js"
   },
   "keywords": [
     "manga",

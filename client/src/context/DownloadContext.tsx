@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_BASE } from '../config';
 
 export const DownloadContext = createContext<any>(null);
-
-const API_BASE = 'http://localhost:3001/api';
 
 export const DownloadProvider = ({ children }: { children: React.ReactNode }) => {
   const [downloadDir, setDownloadDir] = useState('');

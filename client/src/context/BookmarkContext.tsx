@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { API_BASE } from '../config';
 
 export const BookmarkContext = createContext<any>(null);
-
-const API_BASE = 'http://localhost:3001/api';
 
 export const BookmarkProvider = ({ children }: { children: React.ReactNode }) => {
   const [bookmarks, setBookmarks] = useState<any[]>([]);
