@@ -21,14 +21,17 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: 'Home Manga DB',
           short_name: 'MangaDB',
+          id: '/',
+          start_url: '/',
+          scope: '/',
           description: 'Self-hosted manga and comic reader application',
           theme_color: '#000000',
           background_color: '#000000',
-          display: 'standalone',
-          display_override: ['fullscreen', 'standalone'],
+          display: 'fullscreen',
+          display_override: ['fullscreen', 'standalone', 'minimal-ui'],
           orientation: 'any',
-          start_url: '/',
           icons: [
+
             {
               src: '/pwa-192x192.png',
               sizes: '192x192',

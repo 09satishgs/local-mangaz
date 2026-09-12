@@ -5,10 +5,14 @@ import {
   BookOpen,
   FileArchive,
   Monitor,
-  Smartphone
+  Smartphone,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { useViewMode } from '../../context/ViewModeContext';
 import { useDownload } from '../../context/DownloadContext';
+import { useFullscreen } from '../../hooks/useHashRouter';
+
 
 interface WebProps {
   currentRoute: 'home' | 'progress' | 'read' | 'cbz';
@@ -18,6 +22,7 @@ interface WebProps {
 export default function Web({ currentRoute, onRouteChange }: WebProps) {
   const { viewMode, setViewMode } = useViewMode();
   const { jobs } = useDownload();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   const activeJobCount = jobs.filter(
     (j: any) =>
@@ -25,6 +30,7 @@ export default function Web({ currentRoute, onRouteChange }: WebProps) {
       j.status === 'fetching_chapters' ||
       j.status === 'pending'
   ).length;
+
 
   return (
     <header className="border-b border-zinc-900 bg-black sticky top-0 z-30 px-6 md:px-8 py-3.5 flex items-center justify-between">
@@ -95,27 +101,38 @@ export default function Web({ currentRoute, onRouteChange }: WebProps) {
         </button>
       </nav>
 
-      {/* View Mode Switcher */}
-      <div className="flex items-center bg-zinc-950 p-1 rounded-lg border border-zinc-900 text-xs">
+      {/* Right Controls: View Mode Switcher & Fullscreen Button */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center bg-zinc-950 p-1 rounded-lg border border-zinc-900 text-xs">
+          <button
+            onClick={() => setViewMode('web')}
+            title="Desktop / Web View"
+            className={`p-1.5 rounded-md transition cursor-pointer ${
+              viewMode === 'web' ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            <Monitor className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setViewMode('mobile')}
+            title="Mobile View"
+            className={`p-1.5 rounded-md transition cursor-pointer ${
+              viewMode === 'mobile' ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         <button
-          onClick={() => setViewMode('web')}
-          title="Desktop / Web View"
-          className={`p-1.5 rounded-md transition cursor-pointer ${
-            viewMode === 'web' ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
-          }`}
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+          className="p-2 rounded-lg bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-100 transition cursor-pointer"
         >
-          <Monitor className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => setViewMode('mobile')}
-          title="Mobile View"
-          className={`p-1.5 rounded-md transition cursor-pointer ${
-            viewMode === 'mobile' ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
-          }`}
-        >
-          <Smartphone className="w-3.5 h-3.5" />
+          {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
         </button>
       </div>
     </header>
   );
 }
+

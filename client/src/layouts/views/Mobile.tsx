@@ -5,10 +5,13 @@ import {
   BookOpen,
   FileArchive,
   Monitor,
-  Smartphone
+  Smartphone,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { useViewMode } from '../../context/ViewModeContext';
 import { useDownload } from '../../context/DownloadContext';
+import { useFullscreen } from '../../hooks/useHashRouter';
 
 interface MobileProps {
   currentRoute: 'home' | 'progress' | 'read' | 'cbz';
@@ -19,6 +22,7 @@ interface MobileProps {
 export default function Mobile({ currentRoute, onRouteChange, children }: MobileProps) {
   const { viewMode, setViewMode } = useViewMode();
   const { jobs } = useDownload();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   const activeJobCount = jobs.filter(
     (j: any) =>
@@ -41,28 +45,39 @@ export default function Mobile({ currentRoute, onRouteChange, children }: Mobile
           </div>
         </div>
 
-        {/* View Switcher button on top right */}
-        <div className="flex items-center bg-zinc-950 p-0.5 rounded-lg border border-zinc-900 text-xs">
+        {/* View Switcher and Fullscreen button on top right */}
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center bg-zinc-950 p-0.5 rounded-lg border border-zinc-900 text-xs">
+            <button
+              onClick={() => setViewMode('web')}
+              title="Desktop / Web View"
+              className={`p-1.5 rounded-md transition cursor-pointer ${
+                viewMode === 'web' ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <Monitor className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => setViewMode('mobile')}
+              title="Mobile View"
+              className={`p-1.5 rounded-md transition cursor-pointer ${
+                viewMode === 'mobile' ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <Smartphone className="w-3 h-3" />
+            </button>
+          </div>
+
           <button
-            onClick={() => setViewMode('web')}
-            title="Desktop / Web View"
-            className={`p-1.5 rounded-md transition cursor-pointer ${
-              viewMode === 'web' ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            className="p-1.5 rounded-lg bg-zinc-950 border border-zinc-900 text-zinc-400 hover:text-white transition cursor-pointer"
           >
-            <Monitor className="w-3 h-3" />
-          </button>
-          <button
-            onClick={() => setViewMode('mobile')}
-            title="Mobile View"
-            className={`p-1.5 rounded-md transition cursor-pointer ${
-              viewMode === 'mobile' ? 'bg-zinc-900 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            <Smartphone className="w-3 h-3" />
+            {isFullscreen ? <Minimize className="w-3 h-3" /> : <Maximize className="w-3 h-3" />}
           </button>
         </div>
       </header>
+
 
       {/* Main Content Area with bottom padding for tab bar */}
       <main className="flex-1 p-3.5 w-full flex flex-col pb-24">
