@@ -3,6 +3,7 @@ import Layout from './layouts';
 import Home from './components/Home';
 import Progress from './components/Progress';
 import Read from './components/Read';
+import CBZ from './components/CBZ';
 import { BookmarkProvider } from './context/BookmarkContext';
 import { DownloadProvider } from './context/DownloadContext';
 import { ViewModeProvider } from './context/ViewModeContext';
@@ -19,6 +20,7 @@ export default function App() {
             {currentRoute === 'home' && <Home />}
             {currentRoute === 'progress' && <Progress />}
             {currentRoute === 'read' && <Read />}
+            {currentRoute === 'cbz' && <CBZ />}
           </Layout>
         </BookmarkProvider>
       </DownloadProvider>

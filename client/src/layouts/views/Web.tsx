@@ -3,6 +3,7 @@ import {
   Search,
   FolderDown,
   BookOpen,
+  FileArchive,
   Monitor,
   Smartphone
 } from 'lucide-react';
@@ -10,8 +11,8 @@ import { useViewMode } from '../../context/ViewModeContext';
 import { useDownload } from '../../context/DownloadContext';
 
 interface WebProps {
-  currentRoute: 'home' | 'progress' | 'read';
-  onRouteChange: (route: 'home' | 'progress' | 'read') => void;
+  currentRoute: 'home' | 'progress' | 'read' | 'cbz';
+  onRouteChange: (route: 'home' | 'progress' | 'read' | 'cbz') => void;
 }
 
 export default function Web({ currentRoute, onRouteChange }: WebProps) {
@@ -79,6 +80,18 @@ export default function Web({ currentRoute, onRouteChange }: WebProps) {
         >
           <BookOpen className="w-3.5 h-3.5" />
           <span>Read</span>
+        </button>
+
+        <button
+          onClick={() => onRouteChange('cbz')}
+          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+            currentRoute === 'cbz'
+              ? 'bg-zinc-900 text-white border border-zinc-800 shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <FileArchive className="w-3.5 h-3.5" />
+          <span>CBZ</span>
         </button>
       </nav>
 

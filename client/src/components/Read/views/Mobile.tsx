@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Folder,
   ArrowUp,
@@ -11,7 +11,10 @@ import {
   SkipForward,
   SkipBack,
   Rows3,
-  Columns2
+  Columns2,
+  Edit2,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 
 export default function Mobile({ read }: { read: any }) {
@@ -36,6 +39,14 @@ export default function Mobile({ read }: { read: any }) {
     prevPage,
     goToNextChapter,
     goToPrevChapter,
+    renamingFolder,
+    renameInput,
+    setRenameInput,
+    renameLoading,
+    renameError,
+    startRenameFolder,
+    cancelRenameFolder,
+    submitRenameFolder,
     API_BASE
   } = read;
 
@@ -118,6 +129,75 @@ export default function Mobile({ read }: { read: any }) {
         </div>
       )}
 
+      {/* Rename Dialog on Mobile */}
+      {renamingFolder && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 w-full max-w-sm shadow-2xl flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-zinc-100 flex items-center gap-1.5">
+                <Edit2 className="w-3.5 h-3.5 text-zinc-400" />
+                Rename Folder
+              </h3>
+              <button
+                onClick={cancelRenameFolder}
+                disabled={renameLoading}
+                className="text-zinc-500 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-zinc-400">
+              Current name: <span className="font-mono text-zinc-200">{renamingFolder.name}</span>
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitRenameFolder();
+              }}
+              className="flex flex-col gap-2.5"
+            >
+              <input
+                type="text"
+                autoFocus
+                value={renameInput}
+                onChange={(e) => setRenameInput(e.target.value)}
+                placeholder="New name..."
+                disabled={renameLoading}
+                className="w-full bg-zinc-900 text-zinc-100 px-3 py-2 rounded-lg border border-zinc-700 text-xs font-mono focus:outline-none"
+              />
+
+              {renameError && (
+                <div className="flex items-center gap-1.5 text-[11px] text-red-400">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{renameError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={cancelRenameFolder}
+                  disabled={renameLoading}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-900 text-zinc-300 text-xs border border-zinc-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={renameLoading || !renameInput.trim()}
+                  className="px-3.5 py-1.5 rounded-lg bg-zinc-100 text-black text-xs font-semibold flex items-center gap-1"
+                >
+                  {renameLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="p-12 text-center text-zinc-500 flex flex-col items-center gap-2">
           <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
@@ -134,11 +214,24 @@ export default function Mobile({ read }: { read: any }) {
               {folders.map((f: any) => (
                 <div
                   key={f.path}
-                  onClick={() => openFolder(f.path)}
-                  className="flex items-center gap-2.5 p-2.5 rounded-lg bg-zinc-950 border border-zinc-900 text-xs text-zinc-200 cursor-pointer"
+                  className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-zinc-950 border border-zinc-900 text-xs text-zinc-200"
                 >
-                  <Folder className="w-4 h-4 text-zinc-400 shrink-0" />
-                  <span className="truncate text-[11px] font-medium">{f.name}</span>
+                  <div
+                    onClick={() => openFolder(f.path)}
+                    className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
+                  >
+                    <Folder className="w-4 h-4 text-zinc-400 shrink-0" />
+                    <span className="truncate text-[11px] font-medium">{f.name}</span>
+                  </div>
+
+                  {/* Rename button on mobile */}
+                  <button
+                    onClick={() => startRenameFolder(f)}
+                    className="p-1 text-zinc-500 hover:text-zinc-200"
+                    title={`Rename "${f.name}"`}
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ))}
             </div>

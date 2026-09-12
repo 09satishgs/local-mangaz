@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export type RouteType = 'home' | 'progress' | 'read';
+export type RouteType = 'home' | 'progress' | 'read' | 'cbz';
 
-const VALID_ROUTES: RouteType[] = ['home', 'progress', 'read'];
+const VALID_ROUTES: RouteType[] = ['home', 'progress', 'read', 'cbz'];
 
 function getRouteFromHash(): RouteType {
   const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase().trim();

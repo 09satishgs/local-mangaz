@@ -3,6 +3,7 @@ import {
   Search,
   FolderDown,
   BookOpen,
+  FileArchive,
   Monitor,
   Smartphone
 } from 'lucide-react';
@@ -10,8 +11,8 @@ import { useViewMode } from '../../context/ViewModeContext';
 import { useDownload } from '../../context/DownloadContext';
 
 interface MobileProps {
-  currentRoute: 'home' | 'progress' | 'read';
-  onRouteChange: (route: 'home' | 'progress' | 'read') => void;
+  currentRoute: 'home' | 'progress' | 'read' | 'cbz';
+  onRouteChange: (route: 'home' | 'progress' | 'read' | 'cbz') => void;
   children: React.ReactNode;
 }
 
@@ -105,7 +106,7 @@ export default function Mobile({ currentRoute, onRouteChange, children }: Mobile
 
         <button
           onClick={() => onRouteChange('read')}
-          className={`flex flex-col items-center gap-1 py-1 px-4 rounded-xl text-[10px] font-medium transition cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-[10px] font-medium transition cursor-pointer ${
             currentRoute === 'read'
               ? 'text-white font-semibold'
               : 'text-zinc-500 hover:text-zinc-300'
@@ -115,6 +116,20 @@ export default function Mobile({ currentRoute, onRouteChange, children }: Mobile
             <BookOpen className="w-4 h-4" />
           </div>
           <span>Reader</span>
+        </button>
+
+        <button
+          onClick={() => onRouteChange('cbz')}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-[10px] font-medium transition cursor-pointer ${
+            currentRoute === 'cbz'
+              ? 'text-white font-semibold'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          <div className={`p-1.5 rounded-xl transition ${currentRoute === 'cbz' ? 'bg-zinc-900 border border-zinc-800 text-white' : ''}`}>
+            <FileArchive className="w-4 h-4" />
+          </div>
+          <span>CBZ</span>
         </button>
       </nav>
     </div>

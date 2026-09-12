@@ -17,6 +17,12 @@ export function useRead() {
   const [readerOpen, setReaderOpen] = useState(false);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
 
+  // Rename folder state
+  const [renamingFolder, setRenamingFolder] = useState<{ path: string; name: string } | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const [renameLoading, setRenameLoading] = useState(false);
+  const [renameError, setRenameError] = useState('');
+
   const fetchDirectory = useCallback(async (targetPath?: string, openReaderAfter?: boolean, targetPage?: number) => {
     setLoading(true);
     setError('');
@@ -97,8 +103,54 @@ export function useRead() {
 
   const goToPrevChapter = () => {
     if (prevSiblingFolder) {
-      // Start at last page of previous chapter if possible
       fetchDirectory(prevSiblingFolder.path, true, 99999);
+    }
+  };
+
+  // Folder renaming helpers
+  const startRenameFolder = (folder: { path: string; name: string }) => {
+    setRenamingFolder(folder);
+    setRenameInput(folder.name);
+    setRenameError('');
+  };
+
+  const cancelRenameFolder = () => {
+    setRenamingFolder(null);
+    setRenameInput('');
+    setRenameError('');
+  };
+
+  const submitRenameFolder = async () => {
+    if (!renamingFolder || !renameInput.trim()) return;
+    if (renameInput.trim() === renamingFolder.name) {
+      cancelRenameFolder();
+      return;
+    }
+
+    setRenameLoading(true);
+    setRenameError('');
+    try {
+      const res = await fetch(`${API_BASE}/folder/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderPath: renamingFolder.path,
+          newName: renameInput.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        cancelRenameFolder();
+        // Refresh directory listing
+        fetchDirectory(currentPath);
+      } else {
+        setRenameError(data.error || 'Failed to rename folder');
+      }
+    } catch (err: any) {
+      setRenameError('Network error renaming folder: ' + err.message);
+    } finally {
+      setRenameLoading(false);
     }
   };
 
@@ -123,6 +175,15 @@ export function useRead() {
     prevPage,
     goToNextChapter,
     goToPrevChapter,
+    // Rename features
+    renamingFolder,
+    renameInput,
+    setRenameInput,
+    renameLoading,
+    renameError,
+    startRenameFolder,
+    cancelRenameFolder,
+    submitRenameFolder,
     API_BASE
   };
 }

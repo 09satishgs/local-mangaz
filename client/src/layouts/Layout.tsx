@@ -3,7 +3,7 @@ import { useViewMode } from '../context/ViewModeContext';
 import Web from './views/Web';
 import Mobile from './views/Mobile';
 
-export type RouteType = 'home' | 'progress' | 'read';
+export type RouteType = 'home' | 'progress' | 'read' | 'cbz';
 
 interface LayoutProps {
   currentRoute: RouteType;

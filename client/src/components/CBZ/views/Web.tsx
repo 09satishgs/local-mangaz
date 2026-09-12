@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Folder,
-  Image as ImageIcon,
   ArrowUp,
   RefreshCw,
   BookOpen,
@@ -14,67 +13,62 @@ import {
   SkipBack,
   Maximize2,
   Minimize2,
-  Edit2,
-  Check,
-  AlertCircle
+  FileArchive
 } from 'lucide-react';
 
-export default function Web({ read }: { read: any }) {
+function formatBytes(bytes: number) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+export default function Web({ cbz }: { cbz: any }) {
   const {
     currentPath,
     parentPath,
     folders,
-    images,
-    prevSiblingFolder,
-    nextSiblingFolder,
+    cbzFiles,
     loading,
     error,
     openFolder,
     goUp,
     fetchDirectory,
+    activeCbz,
     readerOpen,
-    openReader,
+    openCbzReader,
     closeReader,
     currentPageIndex,
     setCurrentPageIndex,
     nextPage,
     prevPage,
-    goToNextChapter,
-    goToPrevChapter,
-    renamingFolder,
-    renameInput,
-    setRenameInput,
-    renameLoading,
-    renameError,
-    startRenameFolder,
-    cancelRenameFolder,
-    submitRenameFolder,
-    API_BASE
-  } = read;
+    goToNextCbz,
+    goToPrevCbz,
+    loadingCbz
+  } = cbz;
 
-  // Fullscreen toggle state (hides header/footer controls for pure immersive viewing)
   const [fullscreenMode, setFullscreenMode] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
     setFullscreenMode((prev) => !prev);
   }, []);
 
-  // Keyboard navigation handler for reader
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!readerOpen) return;
+      if (!readerOpen || !activeCbz) return;
 
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-        if (currentPageIndex < images.length - 1) {
+        if (currentPageIndex < activeCbz.pages.length - 1) {
           nextPage();
-        } else if (nextSiblingFolder) {
-          goToNextChapter();
+        } else if (activeCbz.nextCbz) {
+          goToNextCbz();
         }
       } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         if (currentPageIndex > 0) {
           prevPage();
-        } else if (prevSiblingFolder) {
-          goToPrevChapter();
+        } else if (activeCbz.prevCbz) {
+          goToPrevCbz();
         }
       } else if (e.key === 'f' || e.key === 'F') {
         toggleFullscreen();
@@ -86,7 +80,18 @@ export default function Web({ read }: { read: any }) {
         }
       }
     },
-    [readerOpen, currentPageIndex, images.length, nextPage, prevPage, nextSiblingFolder, prevSiblingFolder, goToNextChapter, goToPrevChapter, closeReader, fullscreenMode, toggleFullscreen]
+    [
+      readerOpen,
+      activeCbz,
+      currentPageIndex,
+      nextPage,
+      prevPage,
+      goToNextCbz,
+      goToPrevCbz,
+      closeReader,
+      fullscreenMode,
+      toggleFullscreen
+    ]
   );
 
   useEffect(() => {
@@ -94,9 +99,18 @@ export default function Web({ read }: { read: any }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const prevImage = currentPageIndex > 0 ? images[currentPageIndex - 1] : null;
-  const currentImage = images[currentPageIndex] || null;
-  const nextImage = currentPageIndex < images.length - 1 ? images[currentPageIndex + 1] : null;
+  const prevImage =
+    activeCbz && currentPageIndex > 0
+      ? activeCbz.pages[currentPageIndex - 1]
+      : null;
+  const currentImage =
+    activeCbz && activeCbz.pages[currentPageIndex]
+      ? activeCbz.pages[currentPageIndex]
+      : null;
+  const nextImage =
+    activeCbz && currentPageIndex < activeCbz.pages.length - 1
+      ? activeCbz.pages[currentPageIndex + 1]
+      : null;
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
@@ -125,15 +139,11 @@ export default function Web({ read }: { read: any }) {
           </div>
         </div>
 
-        {images.length > 0 && (
-          <button
-            onClick={() => openReader(0)}
-            className="bg-zinc-100 hover:bg-white text-black font-semibold px-4 py-2 rounded-lg text-xs flex items-center gap-2 transition cursor-pointer shrink-0"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            Open 3-Page Reader ({images.length} pages)
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-500 font-mono px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800">
+            {cbzFiles.length} CBZ file(s)
+          </span>
+        </div>
       </div>
 
       {error && (
@@ -142,83 +152,14 @@ export default function Web({ read }: { read: any }) {
         </div>
       )}
 
-      {/* Rename Modal / Dialog */}
-      {renamingFolder && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-5 w-full max-w-md shadow-2xl flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
-                <Edit2 className="w-4 h-4 text-zinc-400" />
-                Rename Folder
-              </h3>
-              <button
-                onClick={cancelRenameFolder}
-                disabled={renameLoading}
-                className="text-zinc-500 hover:text-zinc-300 p-1 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-zinc-400">
-              Renaming <span className="font-mono text-zinc-200">"{renamingFolder.name}"</span>
-            </p>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                submitRenameFolder();
-              }}
-              className="flex flex-col gap-3"
-            >
-              <input
-                type="text"
-                autoFocus
-                value={renameInput}
-                onChange={(e) => setRenameInput(e.target.value)}
-                placeholder="New folder name..."
-                disabled={renameLoading}
-                className="w-full bg-zinc-900 text-zinc-100 placeholder-zinc-500 px-3.5 py-2.5 rounded-lg border border-zinc-700 text-xs font-mono focus:outline-none focus:border-zinc-400"
-              />
-
-              {renameError && (
-                <div className="flex items-center gap-2 text-xs text-red-400">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{renameError}</span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-2 mt-2">
-                <button
-                  type="button"
-                  onClick={cancelRenameFolder}
-                  disabled={renameLoading}
-                  className="px-3.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs transition border border-zinc-800 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={renameLoading || !renameInput.trim()}
-                  className="px-4 py-2 rounded-lg bg-zinc-100 hover:bg-white text-black text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-40 cursor-pointer"
-                >
-                  {renameLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {loading ? (
         <div className="p-16 text-center text-zinc-500 flex flex-col items-center justify-center gap-2 bg-zinc-950 rounded-xl border border-zinc-900">
           <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
-          <span className="text-xs">Exploring files on SSD...</span>
+          <span className="text-xs">Scanning for .cbz and .zip archives...</span>
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {/* Folders (Manga Titles or Chapters) */}
+          {/* Subdirectories */}
           {folders.length > 0 && (
             <div className="flex flex-col gap-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
@@ -229,88 +170,97 @@ export default function Web({ read }: { read: any }) {
                 {folders.map((f: any) => (
                   <div
                     key={f.path}
-                    className="flex items-center justify-between gap-2 p-3.5 rounded-xl bg-zinc-950 border border-zinc-900 hover:bg-zinc-900/80 hover:border-zinc-800 transition group select-none shadow-sm"
+                    onClick={() => openFolder(f.path)}
+                    className="flex items-center gap-3 p-3.5 rounded-xl bg-zinc-950 border border-zinc-900 hover:bg-zinc-900 hover:border-zinc-800 transition cursor-pointer group select-none shadow-sm"
                   >
-                    <div
-                      onClick={() => openFolder(f.path)}
-                      className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
-                    >
-                      <Folder className="w-5 h-5 text-zinc-400 group-hover:text-white shrink-0 transition" />
-                      <span className="font-medium text-xs text-zinc-200 truncate group-hover:text-white">
-                        {f.name}
-                      </span>
-                    </div>
-
-                    {/* Rename folder button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startRenameFolder(f);
-                      }}
-                      title={`Rename "${f.name}"`}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition cursor-pointer"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                    <Folder className="w-5 h-5 text-zinc-400 group-hover:text-white shrink-0 transition" />
+                    <span className="font-medium text-xs text-zinc-200 truncate group-hover:text-white">
+                      {f.name}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Chapter Image Files */}
-          {images.length > 0 ? (
+          {/* CBZ Archives Grid */}
+          {cbzFiles.length > 0 ? (
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  Manga Pages ({images.length})
+                  <FileArchive className="w-3.5 h-3.5 text-zinc-300" />
+                  Manga Comic Archives ({cbzFiles.length})
                 </h3>
-                <span className="text-xs text-zinc-500">Click any page to open 3-Page Reader</span>
+                <span className="text-xs text-zinc-500">
+                  Click any .cbz / .zip file to read
+                </span>
               </div>
 
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
-                {images.map((img: any, idx: number) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {cbzFiles.map((cbzItem: any) => (
                   <div
-                    key={img.path}
-                    onClick={() => openReader(idx)}
-                    className="group relative aspect-[2/3] bg-zinc-950 rounded-lg overflow-hidden border border-zinc-900 hover:border-zinc-600 transition cursor-pointer shadow-sm flex flex-col"
+                    key={cbzItem.path}
+                    onClick={() => openCbzReader(cbzItem.path, 0)}
+                    className="flex items-center justify-between gap-3 p-4 rounded-xl bg-zinc-950 border border-zinc-900 hover:bg-zinc-900/90 hover:border-zinc-700 transition cursor-pointer group shadow-sm"
                   >
-                    <img
-                      src={`${API_BASE}/image?path=${encodeURIComponent(img.path)}`}
-                      alt={img.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 bg-black/80 px-2 py-1 text-[10px] text-zinc-300 font-mono truncate text-center opacity-0 group-hover:opacity-100 transition">
-                      p. {idx + 1}
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center group-hover:border-zinc-700 shrink-0">
+                        <FileArchive className="w-5 h-5 text-zinc-400 group-hover:text-white transition" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-medium text-xs text-zinc-100 truncate group-hover:text-white">
+                          {cbzItem.name}
+                        </h4>
+                        <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                          {formatBytes(cbzItem.sizeBytes)}
+                        </p>
+                      </div>
                     </div>
+
+                    <button className="px-3 py-1.5 rounded-lg bg-zinc-900 group-hover:bg-zinc-100 group-hover:text-black text-zinc-300 text-xs font-semibold flex items-center gap-1.5 transition shrink-0">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Read
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
             folders.length === 0 && (
-              <div className="p-16 text-center text-zinc-600 bg-zinc-950 rounded-xl border border-zinc-900 text-xs">
-                This folder is empty. Navigate into a downloaded manga chapter to read its pages.
+              <div className="p-16 text-center text-zinc-600 bg-zinc-950 rounded-xl border border-zinc-900 text-xs flex flex-col items-center gap-2">
+                <FileArchive className="w-8 h-8 text-zinc-800" />
+                <p>No .cbz or .zip comic files found in this folder.</p>
+                <p className="text-[11px] text-zinc-700">
+                  Place your .cbz files in your manga download directory to read them here.
+                </p>
               </div>
             )
           )}
         </div>
       )}
 
-      {/* Full-Height 3-Page Reader Modal with Fullscreen toggle */}
-      {readerOpen && images.length > 0 && (
+      {/* Loading Overlay when extracting CBZ */}
+      {loadingCbz && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-zinc-200" />
+          <p className="text-xs text-zinc-400 font-mono">
+            Unpacking CBZ archive pages...
+          </p>
+        </div>
+      )}
+
+      {/* 3-Page Desktop CBZ Reader Modal */}
+      {readerOpen && activeCbz && activeCbz.pages.length > 0 && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col select-none overflow-hidden h-screen w-screen">
-          {/* Reader Topbar (Hidden in Fullscreen mode) */}
+          {/* Reader Topbar */}
           {!fullscreenMode && (
             <div className="h-11 border-b border-zinc-900 bg-black px-6 flex items-center justify-between text-xs text-zinc-400 shrink-0 z-20">
               <div className="flex items-center gap-4">
                 <span className="font-semibold text-zinc-200">
-                  Page {currentPageIndex + 1} of {images.length}
+                  Page {currentPageIndex + 1} of {activeCbz.pages.length}
                 </span>
-                <span className="font-mono text-[11px] text-zinc-500 truncate max-w-sm">
-                  {images[currentPageIndex]?.name}
+                <span className="font-mono text-[11px] text-zinc-400 truncate max-w-sm">
+                  {activeCbz.name}
                 </span>
                 <span className="hidden md:inline-block px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 text-[10px] border border-zinc-800 font-mono">
                   Keys: ← / → or A / D | F: Fullscreen
@@ -318,15 +268,15 @@ export default function Web({ read }: { read: any }) {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Prev Chapter Button */}
-                {prevSiblingFolder && (
+                {/* Prev Archive Button */}
+                {activeCbz.prevCbz && (
                   <button
-                    onClick={goToPrevChapter}
+                    onClick={goToPrevCbz}
                     className="flex items-center gap-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded border border-zinc-800 text-xs transition cursor-pointer"
-                    title={`Go to ${prevSiblingFolder.name}`}
+                    title={`Go to ${activeCbz.prevCbz.name}`}
                   >
                     <SkipBack className="w-3.5 h-3.5" />
-                    <span className="hidden lg:inline">Prev Chapter</span>
+                    <span className="hidden lg:inline">Prev CBZ</span>
                   </button>
                 )}
 
@@ -336,21 +286,21 @@ export default function Web({ read }: { read: any }) {
                   onChange={(e) => setCurrentPageIndex(Number(e.target.value))}
                   className="bg-zinc-900 text-zinc-200 text-xs px-2.5 py-1 rounded border border-zinc-800 focus:outline-none cursor-pointer"
                 >
-                  {images.map((_: any, i: number) => (
+                  {activeCbz.pages.map((_: any, i: number) => (
                     <option key={i} value={i}>
                       Page {i + 1}
                     </option>
                   ))}
                 </select>
 
-                {/* Next Chapter Button */}
-                {nextSiblingFolder && (
+                {/* Next Archive Button */}
+                {activeCbz.nextCbz && (
                   <button
-                    onClick={goToNextChapter}
+                    onClick={goToNextCbz}
                     className="flex items-center gap-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded border border-zinc-800 text-xs transition cursor-pointer"
-                    title={`Go to ${nextSiblingFolder.name}`}
+                    title={`Go to ${activeCbz.nextCbz.name}`}
                   >
-                    <span className="hidden lg:inline">Next Chapter</span>
+                    <span className="hidden lg:inline">Next CBZ</span>
                     <SkipForward className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -376,11 +326,11 @@ export default function Web({ read }: { read: any }) {
             </div>
           )}
 
-          {/* Floating Controls Overlay when in Fullscreen Mode */}
+          {/* Floating Controls in Fullscreen Mode */}
           {fullscreenMode && (
             <div className="absolute top-3 right-4 z-30 flex items-center gap-2 bg-black/75 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-zinc-800/80 shadow-2xl opacity-30 hover:opacity-100 transition-opacity">
               <span className="text-[11px] font-mono text-zinc-400">
-                {currentPageIndex + 1}/{images.length}
+                {currentPageIndex + 1}/{activeCbz.pages.length}
               </span>
               <button
                 onClick={toggleFullscreen}
@@ -399,21 +349,25 @@ export default function Web({ read }: { read: any }) {
             </div>
           )}
 
-          {/* 3-Page Display Area - Occupies Full Height of Screen */}
+          {/* 3-Page Display Area */}
           <div
             className={`flex-1 relative flex items-center justify-center p-0 overflow-hidden bg-black gap-2 md:gap-6 w-full ${
               fullscreenMode ? 'h-screen' : 'h-[calc(100vh-76px)]'
             }`}
           >
-            {/* Left Nav Arrow Button */}
+            {/* Left Nav Arrow */}
             <button
               onClick={() => {
                 if (currentPageIndex > 0) prevPage();
-                else if (prevSiblingFolder) goToPrevChapter();
+                else if (activeCbz.prevCbz) goToPrevCbz();
               }}
-              disabled={currentPageIndex === 0 && !prevSiblingFolder}
+              disabled={currentPageIndex === 0 && !activeCbz.prevCbz}
               className="absolute left-3 top-1/2 -translate-y-1/2 p-3.5 rounded-full bg-black/80 hover:bg-zinc-900 text-zinc-200 disabled:opacity-10 transition cursor-pointer z-20 border border-zinc-800/80 shadow-2xl opacity-40 hover:opacity-100"
-              title={currentPageIndex === 0 && prevSiblingFolder ? `Go to previous chapter (${prevSiblingFolder.name})` : 'Previous page'}
+              title={
+                currentPageIndex === 0 && activeCbz.prevCbz
+                  ? `Go to previous CBZ (${activeCbz.prevCbz.name})`
+                  : 'Previous page'
+              }
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
@@ -427,30 +381,34 @@ export default function Web({ read }: { read: any }) {
             >
               {prevImage ? (
                 <img
-                  src={`${API_BASE}/image?path=${encodeURIComponent(prevImage.path)}`}
+                  src={prevImage.url}
                   alt="Previous page"
                   className="max-h-full max-w-full object-contain rounded shadow-lg filter brightness-75"
                 />
-              ) : prevSiblingFolder ? (
+              ) : activeCbz.prevCbz ? (
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
-                    goToPrevChapter();
+                    goToPrevCbz();
                   }}
                   className="flex flex-col items-center justify-center p-6 rounded-xl border border-zinc-800 bg-zinc-950 text-center gap-2 hover:border-zinc-600 transition shadow-lg"
                 >
                   <SkipBack className="w-8 h-8 text-zinc-400" />
-                  <span className="text-xs font-semibold text-zinc-300">Previous Chapter</span>
+                  <span className="text-xs font-semibold text-zinc-300">
+                    Previous CBZ
+                  </span>
                   <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[140px]">
-                    {prevSiblingFolder.name}
+                    {activeCbz.prevCbz.name}
                   </span>
                 </div>
               ) : (
-                <div className="text-xs text-zinc-700 font-medium">Start of Chapter</div>
+                <div className="text-xs text-zinc-700 font-medium">
+                  Start of Archive
+                </div>
               )}
             </div>
 
-            {/* CENTRAL MAIN PAGE (Large, Occupies Full Available Screen Height) */}
+            {/* CENTRAL MAIN PAGE (Full Screen Height) */}
             <div
               className={`flex-1 flex flex-col items-center justify-center max-w-[62vw] z-10 select-none ${
                 fullscreenMode ? 'h-screen py-1' : 'h-[calc(100vh-84px)] py-1'
@@ -458,7 +416,7 @@ export default function Web({ read }: { read: any }) {
             >
               {currentImage && (
                 <img
-                  src={`${API_BASE}/image?path=${encodeURIComponent(currentImage.path)}`}
+                  src={currentImage.url}
                   alt={`Page ${currentPageIndex + 1}`}
                   className="h-full w-auto max-w-full object-contain shadow-2xl rounded"
                 />
@@ -474,54 +432,66 @@ export default function Web({ read }: { read: any }) {
             >
               {nextImage ? (
                 <img
-                  src={`${API_BASE}/image?path=${encodeURIComponent(nextImage.path)}`}
+                  src={nextImage.url}
                   alt="Next page"
                   className="max-h-full max-w-full object-contain rounded shadow-lg filter brightness-75"
                 />
-              ) : nextSiblingFolder ? (
+              ) : activeCbz.nextCbz ? (
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
-                    goToNextChapter();
+                    goToNextCbz();
                   }}
                   className="flex flex-col items-center justify-center p-6 rounded-xl border border-zinc-800 bg-zinc-950 text-center gap-2 hover:border-zinc-600 transition shadow-lg"
                 >
                   <SkipForward className="w-8 h-8 text-zinc-400" />
-                  <span className="text-xs font-semibold text-zinc-300">Next Chapter</span>
+                  <span className="text-xs font-semibold text-zinc-300">
+                    Next CBZ
+                  </span>
                   <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[140px]">
-                    {nextSiblingFolder.name}
+                    {activeCbz.nextCbz.name}
                   </span>
                 </div>
               ) : (
-                <div className="text-xs text-zinc-700 font-medium">End of Chapter</div>
+                <div className="text-xs text-zinc-700 font-medium">
+                  End of Archive
+                </div>
               )}
             </div>
 
-            {/* Right Nav Arrow Button */}
+            {/* Right Nav Arrow */}
             <button
               onClick={() => {
-                if (currentPageIndex < images.length - 1) nextPage();
-                else if (nextSiblingFolder) goToNextChapter();
+                if (currentPageIndex < activeCbz.pages.length - 1) nextPage();
+                else if (activeCbz.nextCbz) goToNextCbz();
               }}
-              disabled={currentPageIndex === images.length - 1 && !nextSiblingFolder}
+              disabled={
+                currentPageIndex === activeCbz.pages.length - 1 &&
+                !activeCbz.nextCbz
+              }
               className="absolute right-3 top-1/2 -translate-y-1/2 p-3.5 rounded-full bg-black/80 hover:bg-zinc-900 text-zinc-200 disabled:opacity-10 transition cursor-pointer z-20 border border-zinc-800/80 shadow-2xl opacity-40 hover:opacity-100"
-              title={currentPageIndex === images.length - 1 && nextSiblingFolder ? `Go to next chapter (${nextSiblingFolder.name})` : 'Next page'}
+              title={
+                currentPageIndex === activeCbz.pages.length - 1 &&
+                activeCbz.nextCbz
+                  ? `Go to next CBZ (${activeCbz.nextCbz.name})`
+                  : 'Next page'
+              }
             >
               <ChevronRight className="w-6 h-6" />
             </button>
           </div>
 
-          {/* Bottom Footer Controls: Chapter Jumper Buttons (Hidden in Fullscreen mode) */}
+          {/* Bottom Footer Controls */}
           {!fullscreenMode && (
             <div className="h-8 border-t border-zinc-900 bg-black px-6 flex items-center justify-between text-[11px] text-zinc-500 shrink-0 z-20">
               <div>
-                {prevSiblingFolder && (
+                {activeCbz.prevCbz && (
                   <button
-                    onClick={goToPrevChapter}
+                    onClick={goToPrevCbz}
                     className="hover:text-zinc-300 flex items-center gap-1 cursor-pointer transition"
                   >
                     <SkipBack className="w-3 h-3" />
-                    Previous: {prevSiblingFolder.name}
+                    Previous: {activeCbz.prevCbz.name}
                   </button>
                 )}
               </div>
@@ -529,12 +499,12 @@ export default function Web({ read }: { read: any }) {
                 Press <span className="text-zinc-400">F</span> for Fullscreen
               </div>
               <div>
-                {nextSiblingFolder && (
+                {activeCbz.nextCbz && (
                   <button
-                    onClick={goToNextChapter}
+                    onClick={goToNextCbz}
                     className="hover:text-zinc-300 flex items-center gap-1 cursor-pointer transition"
                   >
-                    Next: {nextSiblingFolder.name}
+                    Next: {activeCbz.nextCbz.name}
                     <SkipForward className="w-3 h-3" />
                   </button>
                 )}
