@@ -62,11 +62,20 @@ A full-stack Node.js + React desktop/web application for searching, bookmarking,
 
 ## How to Run
 
-From the root project folder (`root\home-manga-db`):
-
+### Development Mode (Concurrent Backend + Vite HMR)
 ```bash
 npm run dev
 ```
+- **Backend API**: [http://localhost:3001](http://localhost:3001)
+- **Frontend App**: [http://localhost:5173/#/home](http://localhost:5173/#/home)
 
-- **Express Backend**: [http://localhost:3001](http://localhost:3001)
-- **React Frontend**: [http://localhost:5173/#/home](http://localhost:5173/#/home)
+### Production Build & Start
+```bash
+# 1. Build the production React frontend
+npm run build
+
+# 2. Run the production server (serves API & pre-built static client)
+npm start
+```
+- Access the production app at: [http://localhost:3001/#/home](http://localhost:3001/#/home)
+

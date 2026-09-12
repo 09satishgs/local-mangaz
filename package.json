@@ -6,9 +6,16 @@
   "scripts": {
     "server": "node server/index.js",
     "client": "npm run dev --prefix client",
-    "dev": "concurrently \"npm run server\" \"npm run client\""
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build:client",
+    "start": "node server/index.js"
   },
-  "keywords": ["manga", "mangadex", "downloader"],
+  "keywords": [
+    "manga",
+    "mangadex",
+    "downloader"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
