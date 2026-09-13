@@ -13,8 +13,13 @@ import {
   SkipBack,
   Maximize2,
   Minimize2,
-  FileArchive
+  FileArchive,
+  Columns3,
+  ScrollText
 } from 'lucide-react';
+import DualScrollReader from '../../common/DualScrollReader';
+
+
 
 function formatBytes(bytes: number) {
   if (!bytes || bytes === 0) return '0 B';
@@ -49,10 +54,14 @@ export default function Web({ cbz }: { cbz: any }) {
   } = cbz;
 
   const [fullscreenMode, setFullscreenMode] = useState(false);
+  // Web Reader View Mode: 'paged' (3-page horizontal layout) vs 'scroll' (66%/33% dual-column synchronized web scroll)
+  const [readerViewMode, setReaderViewMode] = useState<'paged' | 'scroll'>('paged');
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   const toggleFullscreen = useCallback(() => {
     setFullscreenMode((prev) => !prev);
   }, []);
+
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -98,6 +107,38 @@ export default function Web({ cbz }: { cbz: any }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
+
+  // Track active visible page in scroll mode
+  useEffect(() => {
+    if (!readerOpen || readerViewMode !== 'scroll' || !scrollContainerRef.current || !activeCbz) return;
+    const container = scrollContainerRef.current;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const idxAttr = entry.target.getAttribute('data-page-index');
+            if (idxAttr !== null) {
+              const idx = parseInt(idxAttr, 10);
+              if (!isNaN(idx) && idx !== currentPageIndex) {
+                setCurrentPageIndex(idx);
+              }
+            }
+          }
+        });
+      },
+      {
+        root: container,
+        threshold: 0.3
+      }
+    );
+
+    const pages = container.querySelectorAll('[data-page-index]');
+    pages.forEach((p) => observer.observe(p));
+
+    return () => observer.disconnect();
+  }, [readerOpen, readerViewMode, activeCbz]);
+
 
   const prevImage =
     activeCbz && currentPageIndex > 0
@@ -305,6 +346,35 @@ export default function Web({ cbz }: { cbz: any }) {
                   </button>
                 )}
 
+                {/* Reader Layout Mode Switcher (Paged vs Scroll) */}
+                <div className="flex items-center bg-zinc-900 p-0.5 rounded-lg border border-zinc-800 text-xs">
+                  <button
+                    onClick={() => setReaderViewMode('paged')}
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1.5 ${
+                      readerViewMode === 'paged'
+                        ? 'bg-zinc-800 text-white font-medium shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                    title="3-Page Spread Mode"
+                  >
+                    <Columns3 className="w-3.5 h-3.5" />
+                    <span>Paged</span>
+                  </button>
+                  <button
+                    onClick={() => setReaderViewMode('scroll')}
+                    className={`px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1.5 ${
+                      readerViewMode === 'scroll'
+                        ? 'bg-zinc-800 text-white font-medium shadow-xs'
+                        : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                    title="Dual-Column Web Scroll (66% / 33%)"
+                  >
+                    <ScrollText className="w-3.5 h-3.5" />
+                    <span>Scroll (66/33)</span>
+                  </button>
+                </div>
+
+
                 {/* Fullscreen Toggle Button */}
                 <button
                   onClick={toggleFullscreen}
@@ -349,137 +419,156 @@ export default function Web({ cbz }: { cbz: any }) {
             </div>
           )}
 
-          {/* 3-Page Display Area */}
-          <div
-            className={`flex-1 relative flex items-center justify-center p-0 overflow-hidden bg-black gap-2 md:gap-6 w-full ${
-              fullscreenMode ? 'h-screen' : 'h-[calc(100vh-76px)]'
-            }`}
-          >
-            {/* Left Nav Arrow */}
-            <button
-              onClick={() => {
-                if (currentPageIndex > 0) prevPage();
-                else if (activeCbz.prevCbz) goToPrevCbz();
-              }}
-              disabled={currentPageIndex === 0 && !activeCbz.prevCbz}
-              className="absolute left-3 top-1/2 -translate-y-1/2 p-3.5 rounded-full bg-black/80 hover:bg-zinc-900 text-zinc-200 disabled:opacity-10 transition cursor-pointer z-20 border border-zinc-800/80 shadow-2xl opacity-40 hover:opacity-100"
-              title={
-                currentPageIndex === 0 && activeCbz.prevCbz
-                  ? `Go to previous CBZ (${activeCbz.prevCbz.name})`
-                  : 'Previous page'
-              }
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
+          {/* Reader Content Display Area */}
+          {readerViewMode === 'scroll' ? (
+            <DualScrollReader
+              pages={activeCbz.pages.map((p: any) => ({
+                path: p.entryName,
+                name: p.entryName,
+                url: p.url
+              }))}
+              fullscreenMode={fullscreenMode}
+              currentPageIndex={currentPageIndex}
+              onPageChange={(idx) => setCurrentPageIndex(idx)}
+              prevChapter={activeCbz.prevCbz}
+              nextChapter={activeCbz.nextCbz}
+              onPrevChapter={goToPrevCbz}
+              onNextChapter={goToNextCbz}
+            />
+          ) : (
+            /* 3-Page Spread Display Area - Occupies Full Height of Screen */
 
-            {/* PREVIOUS PAGE (Scaled Down Side Panel) */}
             <div
-              className={`hidden md:flex flex-col items-center justify-center w-1/5 opacity-35 hover:opacity-75 transition-opacity cursor-pointer transform scale-95 select-none ${
-                fullscreenMode ? 'h-[92vh]' : 'h-[86vh]'
-              }`}
-              onClick={prevPage}
-            >
-              {prevImage ? (
-                <img
-                  src={prevImage.url}
-                  alt="Previous page"
-                  className="max-h-full max-w-full object-contain rounded shadow-lg filter brightness-75"
-                />
-              ) : activeCbz.prevCbz ? (
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    goToPrevCbz();
-                  }}
-                  className="flex flex-col items-center justify-center p-6 rounded-xl border border-zinc-800 bg-zinc-950 text-center gap-2 hover:border-zinc-600 transition shadow-lg"
-                >
-                  <SkipBack className="w-8 h-8 text-zinc-400" />
-                  <span className="text-xs font-semibold text-zinc-300">
-                    Previous CBZ
-                  </span>
-                  <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[140px]">
-                    {activeCbz.prevCbz.name}
-                  </span>
-                </div>
-              ) : (
-                <div className="text-xs text-zinc-700 font-medium">
-                  Start of Archive
-                </div>
-              )}
-            </div>
-
-            {/* CENTRAL MAIN PAGE (Full Screen Height) */}
-            <div
-              className={`flex-1 flex flex-col items-center justify-center max-w-[62vw] z-10 select-none ${
-                fullscreenMode ? 'h-screen py-1' : 'h-[calc(100vh-84px)] py-1'
+              className={`flex-1 relative flex items-center justify-center p-0 overflow-hidden bg-black gap-2 md:gap-6 w-full ${
+                fullscreenMode ? 'h-screen' : 'h-[calc(100vh-76px)]'
               }`}
             >
-              {currentImage && (
-                <img
-                  src={currentImage.url}
-                  alt={`Page ${currentPageIndex + 1}`}
-                  className="h-full w-auto max-w-full object-contain shadow-2xl rounded"
-                />
-              )}
-            </div>
+              {/* Left Nav Arrow Button */}
+              <button
+                onClick={() => {
+                  if (currentPageIndex > 0) prevPage();
+                  else if (activeCbz.prevCbz) goToPrevCbz();
+                }}
+                disabled={currentPageIndex === 0 && !activeCbz.prevCbz}
+                className="absolute left-3 top-1/2 -translate-y-1/2 p-3.5 rounded-full bg-black/80 hover:bg-zinc-900 text-zinc-200 disabled:opacity-10 transition cursor-pointer z-20 border border-zinc-800/80 shadow-2xl opacity-40 hover:opacity-100"
+                title={
+                  currentPageIndex === 0 && activeCbz.prevCbz
+                    ? `Go to previous CBZ (${activeCbz.prevCbz.name})`
+                    : 'Previous page'
+                }
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
 
-            {/* NEXT PAGE (Scaled Down Side Panel) */}
-            <div
-              className={`hidden md:flex flex-col items-center justify-center w-1/5 opacity-35 hover:opacity-75 transition-opacity cursor-pointer transform scale-95 select-none ${
-                fullscreenMode ? 'h-[92vh]' : 'h-[86vh]'
-              }`}
-              onClick={nextPage}
-            >
-              {nextImage ? (
-                <img
-                  src={nextImage.url}
-                  alt="Next page"
-                  className="max-h-full max-w-full object-contain rounded shadow-lg filter brightness-75"
-                />
-              ) : activeCbz.nextCbz ? (
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    goToNextCbz();
-                  }}
-                  className="flex flex-col items-center justify-center p-6 rounded-xl border border-zinc-800 bg-zinc-950 text-center gap-2 hover:border-zinc-600 transition shadow-lg"
-                >
-                  <SkipForward className="w-8 h-8 text-zinc-400" />
-                  <span className="text-xs font-semibold text-zinc-300">
-                    Next CBZ
-                  </span>
-                  <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[140px]">
-                    {activeCbz.nextCbz.name}
-                  </span>
-                </div>
-              ) : (
-                <div className="text-xs text-zinc-700 font-medium">
-                  End of Archive
-                </div>
-              )}
-            </div>
+              {/* PREVIOUS PAGE (Scaled Down Side Panel) */}
+              <div
+                className={`hidden md:flex flex-col items-center justify-center w-1/5 opacity-35 hover:opacity-75 transition-opacity cursor-pointer transform scale-95 select-none ${
+                  fullscreenMode ? 'h-[92vh]' : 'h-[86vh]'
+                }`}
+                onClick={prevPage}
+              >
+                {prevImage ? (
+                  <img
+                    src={prevImage.url}
+                    alt="Previous page"
+                    className="max-h-full max-w-full object-contain rounded shadow-lg filter brightness-75"
+                  />
+                ) : activeCbz.prevCbz ? (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToPrevCbz();
+                    }}
+                    className="flex flex-col items-center justify-center p-6 rounded-xl border border-zinc-800 bg-zinc-950 text-center gap-2 hover:border-zinc-600 transition shadow-lg"
+                  >
+                    <SkipBack className="w-8 h-8 text-zinc-400" />
+                    <span className="text-xs font-semibold text-zinc-300">
+                      Previous Archive
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[140px]">
+                      {activeCbz.prevCbz.name}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-zinc-700 font-medium">
+                    Start of Archive
+                  </div>
+                )}
+              </div>
 
-            {/* Right Nav Arrow */}
-            <button
-              onClick={() => {
-                if (currentPageIndex < activeCbz.pages.length - 1) nextPage();
-                else if (activeCbz.nextCbz) goToNextCbz();
-              }}
-              disabled={
-                currentPageIndex === activeCbz.pages.length - 1 &&
-                !activeCbz.nextCbz
-              }
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-3.5 rounded-full bg-black/80 hover:bg-zinc-900 text-zinc-200 disabled:opacity-10 transition cursor-pointer z-20 border border-zinc-800/80 shadow-2xl opacity-40 hover:opacity-100"
-              title={
-                currentPageIndex === activeCbz.pages.length - 1 &&
-                activeCbz.nextCbz
-                  ? `Go to next CBZ (${activeCbz.nextCbz.name})`
-                  : 'Next page'
-              }
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </div>
+              {/* CENTRAL MAIN PAGE (Large, Occupies Full Available Screen Height) */}
+              <div
+                className={`flex-1 flex flex-col items-center justify-center max-w-[62vw] z-10 select-none ${
+                  fullscreenMode ? 'h-screen py-1' : 'h-[calc(100vh-84px)] py-1'
+                }`}
+              >
+                {currentImage && (
+                  <img
+                    src={currentImage.url}
+                    alt={`Page ${currentPageIndex + 1}`}
+                    className="h-full w-auto max-w-full object-contain shadow-2xl rounded"
+                  />
+                )}
+              </div>
+
+              {/* NEXT PAGE (Scaled Down Side Panel) */}
+              <div
+                className={`hidden md:flex flex-col items-center justify-center w-1/5 opacity-35 hover:opacity-75 transition-opacity cursor-pointer transform scale-95 select-none ${
+                  fullscreenMode ? 'h-[92vh]' : 'h-[86vh]'
+                }`}
+                onClick={nextPage}
+              >
+                {nextImage ? (
+                  <img
+                    src={nextImage.url}
+                    alt="Next page"
+                    className="max-h-full max-w-full object-contain rounded shadow-lg filter brightness-75"
+                  />
+                ) : activeCbz.nextCbz ? (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToNextCbz();
+                    }}
+                    className="flex flex-col items-center justify-center p-6 rounded-xl border border-zinc-800 bg-zinc-950 text-center gap-2 hover:border-zinc-600 transition shadow-lg"
+                  >
+                    <SkipForward className="w-8 h-8 text-zinc-400" />
+                    <span className="text-xs font-semibold text-zinc-300">
+                      Next Archive
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[140px]">
+                      {activeCbz.nextCbz.name}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-zinc-700 font-medium">
+                    End of Archive
+                  </div>
+                )}
+              </div>
+
+              {/* Right Nav Arrow */}
+              <button
+                onClick={() => {
+                  if (currentPageIndex < activeCbz.pages.length - 1) nextPage();
+                  else if (activeCbz.nextCbz) goToNextCbz();
+                }}
+                disabled={
+                  currentPageIndex === activeCbz.pages.length - 1 &&
+                  !activeCbz.nextCbz
+                }
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-3.5 rounded-full bg-black/80 hover:bg-zinc-900 text-zinc-200 disabled:opacity-10 transition cursor-pointer z-20 border border-zinc-800/80 shadow-2xl opacity-40 hover:opacity-100"
+                title={
+                  currentPageIndex === activeCbz.pages.length - 1 &&
+                  activeCbz.nextCbz
+                    ? `Go to next CBZ (${activeCbz.nextCbz.name})`
+                    : 'Next page'
+                }
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </div>
+          )}
 
           {/* Bottom Footer Controls */}
           {!fullscreenMode && (
