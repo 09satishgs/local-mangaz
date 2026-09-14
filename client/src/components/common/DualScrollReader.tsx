@@ -36,6 +36,10 @@ export default function DualScrollReader({
   const [leftScrollCutoff, setLeftScrollCutoff] = useState<number>(0);
   const [leftWidthPx, setLeftWidthPx] = useState<number>(0);
 
+  // Track whether we have performed the initial jump to currentPageIndex
+  const hasJumpedToInitialPage = useRef<boolean>(false);
+  const lastTargetIndex = useRef<number>(currentPageIndex);
+
   // Synchronize scale and cutoff position in real time
   const updateSync = useCallback(() => {
     const leftEl = leftScrollRef.current;
@@ -56,6 +60,41 @@ export default function DualScrollReader({
     setLeftScrollCutoff(scrollTop + vHeight);
   }, []);
 
+  // Jump/scroll to a specific page index
+  const scrollToPage = useCallback((index: number, behavior: ScrollBehavior = 'instant') => {
+    const el = leftScrollRef.current;
+    if (!el || index < 0 || index >= pages.length) return;
+
+    const targetEl = el.querySelector(`[data-index="${index}"]`) as HTMLElement | null;
+    if (targetEl) {
+      // Calculate top relative to the scroll container
+      const containerRect = el.getBoundingClientRect();
+      const targetRect = targetEl.getBoundingClientRect();
+      const targetScrollTop = el.scrollTop + (targetRect.top - containerRect.top);
+      el.scrollTo({ top: targetScrollTop, behavior });
+    }
+  }, [pages.length]);
+
+  // Initial jump to currentPageIndex upon mounting into scroll mode
+  useEffect(() => {
+    if (!hasJumpedToInitialPage.current && currentPageIndex > 0) {
+      hasJumpedToInitialPage.current = true;
+      // Use requestAnimationFrame so the layout has painted
+      requestAnimationFrame(() => {
+        scrollToPage(currentPageIndex, 'instant');
+        updateSync();
+      });
+    }
+  }, [currentPageIndex, scrollToPage, updateSync]);
+
+  // If the user manually changes the page dropdown in the topbar, jump to it
+  useEffect(() => {
+    if (currentPageIndex !== lastTargetIndex.current) {
+      lastTargetIndex.current = currentPageIndex;
+      scrollToPage(currentPageIndex, 'smooth');
+    }
+  }, [currentPageIndex, scrollToPage]);
+
   useEffect(() => {
     updateSync();
     window.addEventListener('resize', updateSync);
@@ -75,6 +114,7 @@ export default function DualScrollReader({
             if (idxStr !== null) {
               const idx = parseInt(idxStr, 10);
               if (!isNaN(idx) && idx !== currentPageIndex) {
+                lastTargetIndex.current = idx;
                 onPageChange(idx);
               }
             }
@@ -92,6 +132,16 @@ export default function DualScrollReader({
 
     return () => observer.disconnect();
   }, [pages.length, onPageChange, currentPageIndex]);
+
+  // Re-check and adjust scroll position when images load if we resumed from a page > 0
+  const handleImageLoad = (idx: number) => {
+    updateSync();
+    // If the resumed page just loaded, re-verify alignment
+    if (currentPageIndex > 0 && idx === currentPageIndex) {
+      scrollToPage(currentPageIndex, 'instant');
+      updateSync();
+    }
+  };
 
   return (
     <div
@@ -130,9 +180,9 @@ export default function DualScrollReader({
                 <img
                   src={p.url}
                   alt={p.name || `Page ${idx + 1}`}
-                  onLoad={updateSync}
+                  onLoad={() => handleImageLoad(idx)}
                   className="w-full h-auto block select-none"
-                  loading={idx < 4 ? 'eager' : 'lazy'}
+                  loading={Math.abs(idx - currentPageIndex) < 4 ? 'eager' : 'lazy'}
                 />
               </div>
             ))}
